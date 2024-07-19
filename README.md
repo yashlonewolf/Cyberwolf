@@ -58,11 +58,7 @@ The script features:
 
    Replace `<target>` with the domain you want to scan.
 
-## Example
 
-```sh
-./scan.sh example.com
-```
 
 ## Contributing
 
@@ -79,3 +75,5 @@ If you have any questions or suggestions, feel free to open an issue or contact 
 ---
 
 This description provides a comprehensive overview of the script, its features, tools used, and usage instructions, making it easy for others to understand and use your project.
+
+THANK YOU ALL
