@@ -72,7 +72,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 If you have any questions or suggestions, feel free to open an issue or contact me directly.
 
----
+--- https://chat.whatsapp.com/HsavjRTQTcj8rHtGffoBWM
 
 This description provides a comprehensive overview of the script, its features, tools used, and usage instructions, making it easy for others to understand and use your project.
 
