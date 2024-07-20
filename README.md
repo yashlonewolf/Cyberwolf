@@ -26,7 +26,17 @@ The script features:
 - **Error Handling and Retry Mechanism**: Ensures reliable data fetching with retry logic.
 - **Real-time Display**: All results are displayed directly in the terminal for immediate visibility.
 - **ASCII Art**: Displays a wolf face logo at the start of the script for a cool aesthetic touch.
-
+Features:
+Local File Inclusion (LFI) Detection: Scans for potential LFI vulnerabilities using gf and qsreplace.
+Open Redirect Detection: Checks for open redirect vulnerabilities.
+Gospider and Dalfox Integration: Uses gospider and dalfox for in-depth vulnerability scanning.
+Subdomain Enumeration and Prototype Pollution Check: Enumerates subdomains and checks for prototype pollution.
+JavaScript Variable and XSS Payload Check: Identifies potential XSS payloads in JavaScript variables.
+CORS Vulnerability Detection: Detects potential CORS vulnerabilities.
+Wayback URLs and XSS Check: Uses wayback URLs to check for XSS vulnerabilities.
+Full Subdomain Scan: Performs subdomain enumeration, DNS resolution, port scanning, and HTTP probing.
+Directory and File Enumeration: Uses dirsearch for thorough directory and file enumeration.
+SQL Injection Detection: Checks for potential SQL injection vulnerabilities.
 ## Tools Used
 
 - `subfinder`: Fast subdomain enumeration tool.
@@ -37,7 +47,27 @@ The script features:
 - `paramspider`: Parameter discovery tool.
 - `gf`: GoodFuzz patterns to identify potential vulnerabilities.
 - `qsreplace`: Query string replacer for payload injection.
-
+Tools Utilized:
+curl
+grep
+awk
+sed
+amass
+assetfinder
+subfinder
+httpx
+waybackurls
+gau
+paramspider
+gf
+qsreplace
+dalfox
+shuffledns
+dnsx
+naabu
+katana
+nuclei
+dirsearch
 ## Usage
 
 1. Clone the repository:
