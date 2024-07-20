@@ -1,0 +1,67 @@
+# Requirements for Automated Vulnerability Scanner Script
+
+# Install Golang
+sudo apt update
+sudo apt install -y golang
+
+# Install Python3 and pip3
+sudo apt install -y python3 python3-pip
+
+# Install assetfinder
+go install github.com/tomnomnom/assetfinder@latest
+
+# Install subfinder
+go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+
+# Install amass
+go install github.com/OWASP/Amass/v3/...@latest
+
+# Install httpx
+go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+
+# Install gau
+go install github.com/lc/gau/v2/cmd/gau@latest
+
+# Install gf
+go install github.com/tomnomnom/gf@latest
+mkdir ~/.gf
+cp -r $GOPATH/src/github.com/tomnomnom/gf/examples ~/.gf
+echo 'source $GOPATH/src/github.com/tomnomnom/gf/gf-completion.bash' >> ~/.bashrc
+source ~/.bashrc
+
+# Install qsreplace
+go install github.com/tomnomnom/qsreplace@latest
+
+# Install dalfox
+go install github.com/hahwul/dalfox/v2@latest
+
+# Install shuffledns
+go install github.com/projectdiscovery/shuffledns/cmd/shuffledns@latest
+
+# Install dnsx
+go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+
+# Install naabu
+go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
+
+# Install katana
+go install github.com/projectdiscovery/katana/cmd/katana@latest
+
+# Install nuclei
+go install github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest
+
+# Install dirsearch
+git clone https://github.com/maurosoria/dirsearch.git
+cd dirsearch
+pip3 install -r requirements.txt
+cd ..
+
+# Install paramspider
+git clone https://github.com/devanshbatham/ParamSpider.git
+cd ParamSpider
+pip3 install -r requirements.txt
+cd ..
+
+# Install page-fetch (if needed)
+# NOTE: This step may require additional setup or a specific installation method.
+# go install github.com/detectify/page-fetch@latest
